@@ -29,7 +29,6 @@ from axes.models import (
     AccessFailureLog,
     AccessLog,
 )
-from axes.signals import user_locked_out
 
 log = getLogger(__name__)
 
@@ -131,10 +130,7 @@ class AxesDatabaseHandler(AbstractAxesHandler, AxesBaseHandler):
 
         log.info("AXES: User login failed, running database handler for failure.")
 
-        if request is None:
-            log.error(
-                "AXES: AxesDatabaseHandler.user_login_failed does not function without a request."
-            )
+        if not self.has_request(request, log):
             return
 
         # 1. database query: Clean up expired user attempts from the database before logging new attempts
@@ -150,17 +146,7 @@ class AxesDatabaseHandler(AbstractAxesHandler, AxesBaseHandler):
         )
 
         # If axes denied access, don't record the failed attempt as that would reset the lockout time.
-        if (
-            not settings.AXES_RESET_COOL_OFF_ON_FAILURE_DURING_LOCKOUT
-            and request.axes_locked_out
-        ):
-            request.axes_credentials = credentials
-            user_locked_out.send(
-                "axes",
-                request=request,
-                username=username,
-                ip_address=request.axes_ip_address,
-            )
+        if self.is_lockout_already_active(request, credentials):
             return
 
         # This replaces null byte chars that crash saving failures.
@@ -261,14 +247,7 @@ class AxesDatabaseHandler(AbstractAxesHandler, AxesBaseHandler):
                 "AXES: Locking out %s after repeated login failures.", client_str
             )
 
-            request.axes_locked_out = True
-            request.axes_credentials = credentials
-            user_locked_out.send(
-                "axes",
-                request=request,
-                username=username,
-                ip_address=request.axes_ip_address,
-            )
+            self.mark_locked_out(request, credentials)
 
         # 5. database entry: Log for ever the attempt in the AccessFailureLog
         if settings.AXES_ENABLE_ACCESS_FAILURE_LOG:

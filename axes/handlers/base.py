@@ -1,5 +1,6 @@
 import re
 from abc import ABC, abstractmethod
+from logging import Logger, getLogger
 from typing import Optional
 from warnings import warn
 
@@ -14,6 +15,8 @@ from axes.helpers import (
     is_client_method_whitelisted,
     is_user_attempt_whitelisted,
 )
+
+log = getLogger(__name__)
 
 
 class AbstractAxesHandler(ABC):
@@ -134,6 +137,83 @@ class AxesBaseHandler:  # pylint: disable=unused-argument
             ) >= get_failure_limit(request, credentials)
 
         return False
+
+    def has_request(self, request, log: Logger = log) -> bool:
+        """
+        Check that a request object is available for failure processing.
+
+        Failure events can reach a handler through two different paths:
+        directly from the ``django.contrib.auth.signals.user_login_failed``
+        signal or forwarded through the ``AxesProxyHandler``. Both paths are
+        allowed to omit the request, in which case neither the request
+        attributes set by ``AxesProxyHandler.update_request`` nor the lockout
+        state are available. This is the single boundary every handler uses
+        to guard its ``user_login_failed`` implementation.
+
+        The module level ``log`` of the calling handler is forwarded so that
+        the error is emitted from the same logger the handler uses for its
+        other failure events.
+
+        Returns ``True`` when a request was supplied, otherwise logs an error
+        naming the concrete handler class and returns ``False``.
+        """
+
+        if request is None:
+            log.error(
+                f"AXES: {self.__class__.__name__}.user_login_failed "
+                "does not function without a request."
+            )
+            return False
+
+        return True
+
+    def is_lockout_already_active(self, request, credentials: dict) -> bool:
+        """
+        Check whether the current failure arrives while the request is locked.
+
+        When ``AxesBackend`` has already denied the request it sets
+        ``request.axes_locked_out`` before the ``user_login_failed`` signal is
+        emitted. If cool-off resetting is disabled, recording another failure
+        would restart the lockout timer, so the handler only stores the
+        credentials on the request and re-emits the lockout signal instead.
+
+        Returns ``True`` when the failure must not be recorded, after the
+        shared lockout state has been updated and the signal has been sent.
+        """
+
+        if (
+            not settings.AXES_RESET_COOL_OFF_ON_FAILURE_DURING_LOCKOUT
+            and request.axes_locked_out
+        ):
+            self.mark_locked_out(request, credentials)
+            return True
+
+        return False
+
+    def mark_locked_out(self, request, credentials: dict) -> None:
+        """
+        Record the lockout state on the request and emit the lockout signal.
+
+        This is the single place that translates a failure decision into the
+        contract consumed by ``AxesMiddleware``: the request is flagged with
+        ``axes_locked_out`` and ``axes_credentials`` and the
+        ``axes.signals.user_locked_out`` signal is sent with the username and
+        IP address derived from the current authentication context.
+        """
+
+        from axes.helpers import get_client_username
+        from axes.signals import user_locked_out
+
+        username = get_client_username(request, credentials)
+
+        request.axes_locked_out = True
+        request.axes_credentials = credentials
+        user_locked_out.send(
+            "axes",
+            request=request,
+            username=username,
+            ip_address=request.axes_ip_address,
+        )
 
     def get_admin_url(self) -> Optional[str]:
         """

@@ -14,7 +14,6 @@ from axes.helpers import (
     get_lockout_parameters,
 )
 from axes.models import AccessAttempt
-from axes.signals import user_locked_out
 
 log = getLogger(__name__)
 
@@ -72,10 +71,7 @@ class AxesCacheHandler(AbstractAxesHandler, AxesBaseHandler):
         :raises AxesSignalPermissionDenied: if user should be locked out.
         """
 
-        if request is None:
-            log.error(
-                "AXES: AxesCacheHandler.user_login_failed does not function without a request."
-            )
+        if not self.has_request(request, log):
             return
 
         username = get_client_username(request, credentials)
@@ -87,17 +83,7 @@ class AxesCacheHandler(AbstractAxesHandler, AxesBaseHandler):
             return
 
         # If axes denied access, don't record the failed attempt as that would reset the lockout time.
-        if (
-            not settings.AXES_RESET_COOL_OFF_ON_FAILURE_DURING_LOCKOUT
-            and request.axes_locked_out
-        ):
-            request.axes_credentials = credentials
-            user_locked_out.send(
-                "axes",
-                request=request,
-                username=username,
-                ip_address=request.axes_ip_address,
-            )
+        if self.is_lockout_already_active(request, credentials):
             return
 
         client_str = get_client_str(
@@ -156,14 +142,7 @@ class AxesCacheHandler(AbstractAxesHandler, AxesBaseHandler):
                 "AXES: Locking out %s after repeated login failures.", client_str
             )
 
-            request.axes_locked_out = True
-            request.axes_credentials = credentials
-            user_locked_out.send(
-                "axes",
-                request=request,
-                username=username,
-                ip_address=request.axes_ip_address,
-            )
+            self.mark_locked_out(request, credentials)
 
     def user_logged_in(self, sender, request, user, **kwargs):
         """

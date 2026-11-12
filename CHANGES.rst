@@ -2,6 +2,17 @@
 Changes
 =======
 
+Unreleased
+----------
+
+- Centralize the shared ``user_login_failed`` failure-event contract used by
+  the database and cache handlers into reusable ``AxesBaseHandler`` boundary
+  methods: ``has_request`` guards the missing-request path,
+  ``is_lockout_already_active`` handles failures that arrive while the request
+  is already locked out, and ``mark_locked_out`` sets the request lockout state
+  and emits the ``user_locked_out`` signal. Custom handler wiring and the
+  handler method signatures are unchanged.
+
 9.0.0 (2026-10-30)
 ------------------
 
