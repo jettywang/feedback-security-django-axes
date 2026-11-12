@@ -1,6 +1,6 @@
 import re
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Optional, Tuple
 from warnings import warn
 
 from django.urls import reverse
@@ -231,6 +231,24 @@ class AxesBaseHandler:  # pylint: disable=unused-argument
 
         """
         return 0
+
+    def clean_expired_user_attempts_batch(
+        self,
+        request=None,
+        credentials: Optional[dict] = None,
+        *,
+        batch_size: int,
+    ) -> Tuple[int, int]:
+        """
+        Cleans up to batch_size expired access attempts and returns
+        a tuple of (deleted count, remaining expired count).
+
+        This method makes more sense for the DB backend, but as it is used by the ProxyHandler
+        (via inherent), it needs to be defined here, so we get compliant with all proxy methods.
+
+        Please overwrite it on each specialized handler as needed.
+        """
+        return 0, 0
 
 
 class AxesHandler(AbstractAxesHandler, AxesBaseHandler):

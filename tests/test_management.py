@@ -3,6 +3,7 @@ from io import StringIO
 from unittest.mock import patch, Mock
 
 from django.core.management import call_command
+from django.test import override_settings
 from django.utils import timezone
 
 from axes.models import AccessAttempt, AccessLog
@@ -45,6 +46,72 @@ class ResetAccessLogsManagementCommandTestCase(AxesTestCase):
         out = StringIO()
         call_command("axes_reset_logs", age=16, stdout=out)
         self.assertEqual(self.msg_num_found.format(1), out.getvalue())
+
+
+class CleanExpiredAttemptsBatchManagementCommandTestCase(AxesTestCase):
+    """
+    Batched cleanup of expired access attempts on the temporary test database.
+
+    Records are created straddling the cool off expiry boundary, two batches
+    are run with new failure events inserted in between, and the reported
+    deleted/remaining counts are asserted so operators know when to stop.
+    """
+
+    def create_attempt(self, username, attempt_time):
+        with patch("django.utils.timezone.now", Mock(return_value=attempt_time)):
+            return AccessAttempt.objects.create(
+                username=username,
+                ip_address="10.0.0.1",
+                user_agent=username,
+                failures_since_start=1,
+            )
+
+    def run_batch(self, batch_size=2):
+        out = StringIO()
+        call_command("axes_clean_expired_attempts", batch_size=batch_size, stdout=out)
+        return out.getvalue()
+
+    @override_settings(AXES_COOLOFF_TIME=timedelta(hours=1))
+    def test_batched_cleanup_with_concurrent_failures(self):
+        now = timezone.now()
+        expired_time = now - timedelta(hours=2)
+        cooling_time = now - timedelta(minutes=30)
+
+        for i in range(5):
+            self.create_attempt(f"expired-{i}", expired_time)
+        for i in range(2):
+            self.create_attempt(f"cooling-{i}", cooling_time)
+
+        self.assertEqual(
+            "2 expired attempts removed. 3 expired attempts remaining.\n",
+            self.run_batch(),
+        )
+
+        # new failure events recorded in parallel between batches
+        self.create_attempt("fresh-1", now)
+        self.create_attempt("fresh-2", now)
+
+        self.assertEqual(
+            "2 expired attempts removed. 1 expired attempts remaining.\n",
+            self.run_batch(),
+        )
+        self.assertEqual(
+            "1 expired attempts removed. 0 expired attempts remaining.\n",
+            self.run_batch(),
+        )
+        self.assertEqual("No expired attempts found.\n", self.run_batch())
+
+        # only the cooling and freshly recorded attempts survive
+        self.assertEqual(
+            {"cooling-0", "cooling-1", "fresh-1", "fresh-2"},
+            set(AccessAttempt.objects.values_list("username", flat=True)),
+        )
+
+    @override_settings(AXES_COOLOFF_TIME=None)
+    def test_no_cooloff_configured(self):
+        self.create_attempt("expired-0", timezone.now() - timedelta(days=30))
+        self.assertEqual("No expired attempts found.\n", self.run_batch())
+        self.assertEqual(1, AccessAttempt.objects.count())
 
 
 class ManagementCommandTestCase(AxesTestCase):

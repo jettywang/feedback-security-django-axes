@@ -1,6 +1,6 @@
 from datetime import timedelta
 from logging import getLogger
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from django.db import router, transaction
 from django.db.models import F, Q, QuerySet, Sum, Value
@@ -435,6 +435,51 @@ class AxesDatabaseHandler(AbstractAxesHandler, AxesBaseHandler):
                 threshold,
             )
         return count
+
+    def clean_expired_user_attempts_batch(
+        self,
+        request: Optional[HttpRequest] = None,
+        credentials: Optional[dict] = None,  # noqa
+        *,
+        batch_size: int,
+    ) -> Tuple[int, int]:
+        """
+        Clean up to ``batch_size`` expired user attempts from the database.
+
+        Returns a tuple of ``(deleted, remaining)`` so that operators can
+        schedule follow-up batches until ``remaining`` reaches zero.
+
+        The expiry threshold is evaluated once per batch, so attempts that
+        are still in their cool off period or that get recorded while a
+        batch is running are neither deleted nor counted as remaining.
+        """
+
+        if settings.AXES_COOLOFF_TIME is None:
+            log.debug(
+                "AXES: Skipping clean for expired access attempts because no AXES_COOLOFF_TIME is configured"
+            )
+            return 0, 0
+
+        if settings.AXES_USE_ATTEMPT_EXPIRATION:
+            threshold = timezone.now()
+            expired = AccessAttempt.objects.filter(
+                expiration__expires_at__lte=threshold
+            )
+        else:
+            threshold = get_cool_off_threshold(request)
+            expired = AccessAttempt.objects.filter(attempt_time__lte=threshold)
+
+        batch_pks = list(expired.values_list("pk", flat=True)[:batch_size])
+        deleted, _ = AccessAttempt.objects.filter(pk__in=batch_pks).delete()
+        remaining = expired.count()
+        log.info(
+            "AXES: Cleaned up %s expired access attempts from database in a batch of at most %s, %s remaining (threshold %s)",
+            deleted,
+            batch_size,
+            remaining,
+            threshold,
+        )
+        return deleted, remaining
 
     def reset_user_attempts(
         self, request: HttpRequest, credentials: Optional[dict] = None

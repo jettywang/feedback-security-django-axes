@@ -2,7 +2,7 @@
 # pylint generates false negatives from proxy class method overrides
 
 from logging import getLogger
-from typing import Optional
+from typing import Optional, Tuple
 
 from django.utils.module_loading import import_string
 from django.utils.timezone import now
@@ -72,6 +72,12 @@ class AxesProxyHandler(AbstractAxesHandler, AxesBaseHandler):
     ) -> int:
         return cls.get_implementation().remove_out_of_limit_failure_logs(
             username=username
+        )
+
+    @classmethod
+    def clean_expired_user_attempts_batch(cls, *, batch_size: int) -> Tuple[int, int]:
+        return cls.get_implementation().clean_expired_user_attempts_batch(
+            batch_size=batch_size
         )
 
     @staticmethod
