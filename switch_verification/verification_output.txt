@@ -1,0 +1,159 @@
+
+==============================================================================
+PHYSICAL ROWS STORED IN SQLite (write key is independent of lockout config)
+==============================================================================
+<QuerySet [('alice', '10.0.0.1', 'Chrome', 3), ('alice', '10.0.0.2', 'Chrome', 3), ('bob', '10.0.0.1', 'Chrome', 5), ('carol', '10.0.0.9', 'Firefox', 5), ('carol', '10.0.0.9', 'Safari', 2), ('dave', '10.0.0.5', 'Chrome', 2)]>
+unique_together = (('username', 'ip_address', 'user_agent'),)
+
+==============================================================================
+OLD ['username']  |  failure limit = 5
+==============================================================================
+
+probe username=alice  ip=10.0.0.1   ua=Chrome
+  read filter_kwargs : [{'username': 'alice'}]
+  cache key(s)       : ['axes-2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90']
+  SQL                : "axes_accessattempt"."username" = alice
+  matched rows       : [('alice', '10.0.0.1', 'Chrome', 3), ('alice', '10.0.0.2', 'Chrome', 3)]
+  aggregated failures: 6 => LOCKED
+
+probe username=alice  ip=10.0.0.2   ua=Chrome
+  read filter_kwargs : [{'username': 'alice'}]
+  cache key(s)       : ['axes-2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90']
+  SQL                : "axes_accessattempt"."username" = alice
+  matched rows       : [('alice', '10.0.0.1', 'Chrome', 3), ('alice', '10.0.0.2', 'Chrome', 3)]
+  aggregated failures: 6 => LOCKED
+
+probe username=alice  ip=10.0.0.77  ua=Chrome
+  read filter_kwargs : [{'username': 'alice'}]
+  cache key(s)       : ['axes-2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90']
+  SQL                : "axes_accessattempt"."username" = alice
+  matched rows       : [('alice', '10.0.0.1', 'Chrome', 3), ('alice', '10.0.0.2', 'Chrome', 3)]
+  aggregated failures: 6 => LOCKED
+
+probe username=bob    ip=10.0.0.1   ua=Chrome
+  read filter_kwargs : [{'username': 'bob'}]
+  cache key(s)       : ['axes-81b637d8fcd2c6da6359e6963113a1170de795e4b725b84d1e0b4cfd9ec58ce9']
+  SQL                : "axes_accessattempt"."username" = bob
+  matched rows       : [('bob', '10.0.0.1', 'Chrome', 5)]
+  aggregated failures: 5 => LOCKED
+
+probe username=carol  ip=10.0.0.9   ua=Firefox
+  read filter_kwargs : [{'username': 'carol'}]
+  cache key(s)       : ['axes-4c26d9074c27d89ede59270c0ac14b71e071b15239519f75474b2f3ba63481f5']
+  SQL                : "axes_accessattempt"."username" = carol
+  matched rows       : [('carol', '10.0.0.9', 'Firefox', 5), ('carol', '10.0.0.9', 'Safari', 2)]
+  aggregated failures: 7 => LOCKED
+
+probe username=carol  ip=10.0.0.9   ua=Chrome
+  read filter_kwargs : [{'username': 'carol'}]
+  cache key(s)       : ['axes-4c26d9074c27d89ede59270c0ac14b71e071b15239519f75474b2f3ba63481f5']
+  SQL                : "axes_accessattempt"."username" = carol
+  matched rows       : [('carol', '10.0.0.9', 'Firefox', 5), ('carol', '10.0.0.9', 'Safari', 2)]
+  aggregated failures: 7 => LOCKED
+
+==============================================================================
+NEW [['username', 'ip_address']]  |  failure limit = 5
+==============================================================================
+
+probe username=alice  ip=10.0.0.1   ua=Chrome
+  read filter_kwargs : [{'username': 'alice', 'ip_address': '10.0.0.1'}]
+  cache key(s)       : ['axes-7346daca7a23a90878acb8c1d82965b25c7de716a1cea841a331d24b5da5bca4']
+  SQL                : ("axes_accessattempt"."ip_address" = 10.0.0.1 AND "axes_accessattempt"."username" = alice)
+  matched rows       : [('alice', '10.0.0.1', 'Chrome', 3)]
+  aggregated failures: 3 => allowed
+
+probe username=alice  ip=10.0.0.2   ua=Chrome
+  read filter_kwargs : [{'username': 'alice', 'ip_address': '10.0.0.2'}]
+  cache key(s)       : ['axes-94dc389d208129d8819258353d8618318ea1a91b75043cdd2053a4aced4dfa73']
+  SQL                : ("axes_accessattempt"."ip_address" = 10.0.0.2 AND "axes_accessattempt"."username" = alice)
+  matched rows       : [('alice', '10.0.0.2', 'Chrome', 3)]
+  aggregated failures: 3 => allowed
+
+probe username=alice  ip=10.0.0.77  ua=Chrome
+  read filter_kwargs : [{'username': 'alice', 'ip_address': '10.0.0.77'}]
+  cache key(s)       : ['axes-0c586e335e63899563177689d9d65ae3805072e9ec2c5a1f09a1f94ee0abc0c5']
+  SQL                : ("axes_accessattempt"."ip_address" = 10.0.0.77 AND "axes_accessattempt"."username" = alice)
+  matched rows       : []
+  aggregated failures: 0 => allowed
+
+probe username=bob    ip=10.0.0.1   ua=Chrome
+  read filter_kwargs : [{'username': 'bob', 'ip_address': '10.0.0.1'}]
+  cache key(s)       : ['axes-ce7e790d5da8a3cd068c6cfc5643c37a3438f37edcff476575e5226dbc860166']
+  SQL                : ("axes_accessattempt"."ip_address" = 10.0.0.1 AND "axes_accessattempt"."username" = bob)
+  matched rows       : [('bob', '10.0.0.1', 'Chrome', 5)]
+  aggregated failures: 5 => LOCKED
+
+probe username=carol  ip=10.0.0.9   ua=Firefox
+  read filter_kwargs : [{'username': 'carol', 'ip_address': '10.0.0.9'}]
+  cache key(s)       : ['axes-f175c0ef0e25bd9750708bc7159c82deff232e23a9c95cc44766d57120b6200f']
+  SQL                : ("axes_accessattempt"."ip_address" = 10.0.0.9 AND "axes_accessattempt"."username" = carol)
+  matched rows       : [('carol', '10.0.0.9', 'Firefox', 5), ('carol', '10.0.0.9', 'Safari', 2)]
+  aggregated failures: 7 => LOCKED
+
+probe username=carol  ip=10.0.0.9   ua=Chrome
+  read filter_kwargs : [{'username': 'carol', 'ip_address': '10.0.0.9'}]
+  cache key(s)       : ['axes-f175c0ef0e25bd9750708bc7159c82deff232e23a9c95cc44766d57120b6200f']
+  SQL                : ("axes_accessattempt"."ip_address" = 10.0.0.9 AND "axes_accessattempt"."username" = carol)
+  matched rows       : [('carol', '10.0.0.9', 'Firefox', 5), ('carol', '10.0.0.9', 'Safari', 2)]
+  aggregated failures: 7 => LOCKED
+
+==============================================================================
+ADMIN RESET SCOPE (real handler, rolled back afterwards)
+==============================================================================
+
+reset by username only  (axes_reset_username alice)  kwargs={'username': 'alice'}
+  rows removed: [('alice', '10.0.0.1', 'Chrome'), ('alice', '10.0.0.2', 'Chrome')]
+  delete count: 2
+
+reset by ip only        (axes_reset_ip 10.0.0.9)  kwargs={'ip_address': '10.0.0.9'}
+  rows removed: [('carol', '10.0.0.9', 'Firefox'), ('carol', '10.0.0.9', 'Safari')]
+  delete count: 2
+
+reset by ip AND username(axes_reset_ip_username, default AND)  kwargs={'ip_address': '10.0.0.1', 'username': 'alice'}
+  rows removed: [('alice', '10.0.0.1', 'Chrome')]
+  delete count: 1
+
+reset ip OR username    (ip_or_username=True)  kwargs={'ip_address': '10.0.0.1', 'username': 'alice', 'ip_or_username': True}
+  rows removed: [('alice', '10.0.0.1', 'Chrome'), ('alice', '10.0.0.2', 'Chrome'), ('bob', '10.0.0.1', 'Chrome')]
+  delete count: 3
+
+==============================================================================
+CACHE-HANDLER RESET LIMITATION
+==============================================================================
+ip_or_username=True raises NotImplementedError: Due to the cache key ip_or_username=True is not supported
+
+==============================================================================
+ASSERTED EXPECTATIONS
+==============================================================================
+[ok] ('alice', '10.0.0.1', 'Chrome') old locked: got=True want=True
+[ok] ('alice', '10.0.0.1', 'Chrome') old matched: got=2 want=2
+[ok] ('alice', '10.0.0.1', 'Chrome') new locked: got=False want=False
+[ok] ('alice', '10.0.0.1', 'Chrome') new matched: got=1 want=1
+[ok] ('alice', '10.0.0.1', 'Chrome') cache keys differ: got=True want=True
+[ok] ('alice', '10.0.0.2', 'Chrome') old locked: got=True want=True
+[ok] ('alice', '10.0.0.2', 'Chrome') old matched: got=2 want=2
+[ok] ('alice', '10.0.0.2', 'Chrome') new locked: got=False want=False
+[ok] ('alice', '10.0.0.2', 'Chrome') new matched: got=1 want=1
+[ok] ('alice', '10.0.0.2', 'Chrome') cache keys differ: got=True want=True
+[ok] ('alice', '10.0.0.77', 'Chrome') old locked: got=True want=True
+[ok] ('alice', '10.0.0.77', 'Chrome') old matched: got=2 want=2
+[ok] ('alice', '10.0.0.77', 'Chrome') new locked: got=False want=False
+[ok] ('alice', '10.0.0.77', 'Chrome') new matched: got=0 want=0
+[ok] ('alice', '10.0.0.77', 'Chrome') cache keys differ: got=True want=True
+[ok] ('bob', '10.0.0.1', 'Chrome') old locked: got=True want=True
+[ok] ('bob', '10.0.0.1', 'Chrome') old matched: got=1 want=1
+[ok] ('bob', '10.0.0.1', 'Chrome') new locked: got=True want=True
+[ok] ('bob', '10.0.0.1', 'Chrome') new matched: got=1 want=1
+[ok] ('bob', '10.0.0.1', 'Chrome') cache keys differ: got=True want=True
+[ok] ('carol', '10.0.0.9', 'Firefox') old locked: got=True want=True
+[ok] ('carol', '10.0.0.9', 'Firefox') old matched: got=2 want=2
+[ok] ('carol', '10.0.0.9', 'Firefox') new locked: got=True want=True
+[ok] ('carol', '10.0.0.9', 'Firefox') new matched: got=2 want=2
+[ok] ('carol', '10.0.0.9', 'Firefox') cache keys differ: got=True want=True
+[ok] ('carol', '10.0.0.9', 'Chrome') old locked: got=True want=True
+[ok] ('carol', '10.0.0.9', 'Chrome') old matched: got=2 want=2
+[ok] ('carol', '10.0.0.9', 'Chrome') new locked: got=True want=True
+[ok] ('carol', '10.0.0.9', 'Chrome') new matched: got=2 want=2
+[ok] ('carol', '10.0.0.9', 'Chrome') cache keys differ: got=True want=True
+
+TOTAL ASSERTION FAILURES: 0
