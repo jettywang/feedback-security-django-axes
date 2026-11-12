@@ -13,7 +13,7 @@ class Command(BaseCommand):
         count = 0
 
         for ip in options["ip"]:
-            count += reset(ip=ip)
+            count += reset(ip=ip, entry_point="command")
 
         if count:
             self.stdout.write(f"{count} attempts removed.")

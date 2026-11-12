@@ -119,6 +119,36 @@ You can use the following snippet in your project signals such as ``example/sign
     def raise_permission_denied(*args, **kwargs):
         raise PermissionDenied("Too many failed login attempts")
 
+
+Unlock audit events
+^^^^^^^^^^^^^^^^^^^
+
+Operations that remove ``AccessAttempt`` records also emit
+``axes.signals.user_unlocked`` (also exported as
+``axes.signals.access_attempts_reset``) after the deletion has completed.
+The payload contains ``entry_point``, ``scope``, ``status``, ``requested``, and
+``affected``; it never contains usernames, IP addresses, or request data::
+
+    from django.dispatch import receiver
+
+    from axes.signals import user_unlocked
+
+
+    @receiver(user_unlocked)
+    def record_unlock(sender, entry_point, scope, status, requested, affected, **kwargs):
+        audit_log.info(
+            "unlock entry_point=%s scope=%s status=%s requested=%s affected=%s",
+            entry_point,
+            scope,
+            status,
+            requested,
+            affected,
+        )
+
+``status`` is ``"success"`` for a complete unlock, ``"partial"`` when only
+some of the selected records were removed, and ``"noop"`` when nothing was
+removed.  See :ref:`usage` for the full list of entry points and scopes.
+
 And then configure your application to load it in ``examples/apps.py``::
 
     from django import apps

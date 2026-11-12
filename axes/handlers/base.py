@@ -185,12 +185,19 @@ class AxesBaseHandler:  # pylint: disable=unused-argument
         ip_address: Optional[str] = None,
         username: Optional[str] = None,
         ip_or_username: bool = False,
+        entry_point: str = "api",
     ) -> int:
         """
         Resets access attempts that match the given IP address or username.
 
         This method makes more sense for the DB backend, but as it is used by the ProxyHandler
         (via inherent), it needs to be defined here, so we get compliant with all proxy methods.
+
+        Implementations that actually delete attempt records should emit the
+        ``axes.signals.user_unlocked`` audit event via
+        ``axes.unlock.emit_unlock_event`` after the deletion has completed.
+        ``entry_point`` identifies the caller (``"admin"``, ``"command"``, or
+        ``"api"``) and must be forwarded to that event.
 
         Please overwrite it on each specialized handler as needed.
         """

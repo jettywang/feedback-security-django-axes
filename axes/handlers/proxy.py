@@ -53,9 +53,13 @@ class AxesProxyHandler(AbstractAxesHandler, AxesBaseHandler):
         ip_address: Optional[str] = None,
         username: Optional[str] = None,
         ip_or_username: bool = False,
+        entry_point: str = "api",
     ) -> int:
         return cls.get_implementation().reset_attempts(
-            ip_address=ip_address, username=username, ip_or_username=ip_or_username
+            ip_address=ip_address,
+            username=username,
+            ip_or_username=ip_or_username,
+            entry_point=entry_point,
         )
 
     @classmethod

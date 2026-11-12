@@ -1,10 +1,13 @@
 from django.contrib import admin
+from django.contrib.admin.actions import delete_selected
 from django.http import HttpRequest
 from django.utils.translation import gettext_lazy as _
 
 from axes.conf import settings
 from axes.models import AccessAttempt, AccessLog, AccessFailureLog
 from axes.handlers.database import AxesDatabaseHandler
+from axes.signals import emit_unlock_event
+from axes.unlock import delete_access_attempt, delete_access_attempts
 
 
 class IsLockedOutFilter(admin.SimpleListFilter):
@@ -74,12 +77,56 @@ class AccessAttemptAdmin(admin.ModelAdmin):
         "expiration",
     ]
 
-    actions = ["cleanup_expired_attempts"]
+    actions = ["cleanup_expired_attempts", "delete_selected"]
 
     @admin.action(description=_("Clean up expired attempts"))
     def cleanup_expired_attempts(self, request, queryset):  # noqa
         count = self.handler.clean_expired_user_attempts(request=request)
         self.message_user(request, _(f"Cleaned up {count} expired access attempts."))
+
+    @admin.action(description=_("Delete selected access attempts"))
+    def delete_selected(self, request, queryset):
+        """
+        Delete the selected access attempts and audit the unlock.
+
+        Django's stock ``delete_selected`` action does not call
+        ``delete_queryset`` when the selection has already disappeared between
+        the confirmation page and the POST.  This wrapper emits the same
+        ``noop`` audit event in that case so operators always see one event
+        per confirmed unlock action.
+        """
+
+        if request.POST.get("post") and not queryset.exists():
+            emit_unlock_event(
+                entry_point="admin",
+                scope="selection",
+                requested=0,
+                affected=0,
+            )
+            return None
+
+        return delete_selected(self, request, queryset)
+
+    def delete_model(self, request, obj):
+        """
+        Delete a single access attempt and emit the unlock audit event.
+
+        Django's admin calls this after the user confirms deletion of one
+        object, so the audit event carries ``scope="instance"``.
+        """
+
+        delete_access_attempt(obj, entry_point="admin", scope="instance")
+
+    def delete_queryset(self, request, queryset):
+        """
+        Delete selected access attempts and emit one unlock audit event.
+
+        This covers both the admin list "delete selected" action and any
+        custom admin views that pass a queryset.  The event reports how many
+        attempts were selected and how many were actually removed.
+        """
+
+        delete_access_attempts(queryset, entry_point="admin", scope="selection")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

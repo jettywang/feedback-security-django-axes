@@ -13,6 +13,7 @@ class AxesTestHandler(AxesHandler):
         ip_address: Optional[str] = None,
         username: Optional[str] = None,
         ip_or_username: bool = False,
+        entry_point: str = "api",
     ) -> int:
         return 0
 

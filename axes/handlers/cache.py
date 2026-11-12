@@ -14,7 +14,8 @@ from axes.helpers import (
     get_lockout_parameters,
 )
 from axes.models import AccessAttempt
-from axes.signals import user_locked_out
+from axes.signals import emit_unlock_event, user_locked_out
+from axes.unlock import get_unlock_scope
 
 log = getLogger(__name__)
 
@@ -33,6 +34,7 @@ class AxesCacheHandler(AbstractAxesHandler, AxesBaseHandler):
         ip_address: Optional[str] = None,
         username: Optional[str] = None,
         ip_or_username: bool = False,
+        entry_point: str = "api",
     ) -> int:
         cache_keys: list = []
         count = 0
@@ -55,6 +57,17 @@ class AxesCacheHandler(AbstractAxesHandler, AxesBaseHandler):
             count += int(deleted) if deleted is not None else 1
 
         log.info("AXES: Reset %d access attempts from database.", count)
+
+        emit_unlock_event(
+            entry_point=entry_point,
+            scope=get_unlock_scope(
+                ip_address=ip_address,
+                username=username,
+                ip_or_username=ip_or_username,
+            ),
+            requested=len(cache_keys),
+            affected=count,
+        )
 
         return count
 

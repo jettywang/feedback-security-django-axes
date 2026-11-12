@@ -17,16 +17,24 @@ log = getLogger(__name__)
 
 
 def reset(
-    ip: Optional[str] = None, username: Optional[str] = None, ip_or_username=False
+    ip: Optional[str] = None,
+    username: Optional[str] = None,
+    ip_or_username=False,
+    entry_point: str = "api",
 ) -> int:
     """
     Reset records that match IP or username, and return the count of removed attempts.
 
     This utility method is meant to be used from the CLI or via Python API.
+    ``entry_point`` is forwarded to the ``axes.signals.user_unlocked`` audit
+    event and should identify the caller, for example ``"command"``.
     """
 
     return AxesProxyHandler.reset_attempts(
-        ip_address=ip, username=username, ip_or_username=ip_or_username
+        ip_address=ip,
+        username=username,
+        ip_or_username=ip_or_username,
+        entry_point=entry_point,
     )
 
 

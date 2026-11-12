@@ -22,6 +22,13 @@ Breaking changes and upgrading
 Features and fixes
 ~~~~~~~~~~~~~~~~~~
 
+- Add a ``user_unlocked`` audit signal (also available as
+  ``access_attempts_reset``) emitted after explicit unlock actions from the
+  Django admin, management commands, and ``axes.utils.reset``.  The event
+  reports ``entry_point``, ``scope``, ``status``, ``requested``, and
+  ``affected`` without usernames or IP addresses.  Empty runs emit
+  ``status="noop"`` and subset deletions emit ``status="partial"``; failed
+  backend operations emit no success event.
 - Truncate usernames to the model field's maximum length before lockout lookups
   and failed-login logging to avoid database errors for oversized usernames.
 - Fall back to the user model's ``USERNAME_FIELD`` when

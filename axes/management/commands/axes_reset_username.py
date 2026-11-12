@@ -13,7 +13,7 @@ class Command(BaseCommand):
         count = 0
 
         for username in options["username"]:
-            count += reset(username=username)
+            count += reset(username=username, entry_point="command")
 
         if count:
             self.stdout.write(f"{count} attempts removed.")

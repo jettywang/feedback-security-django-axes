@@ -30,6 +30,7 @@ from axes.models import (
     AccessLog,
 )
 from axes.signals import user_locked_out
+from axes.unlock import delete_access_attempts, get_unlock_scope
 
 log = getLogger(__name__)
 
@@ -48,6 +49,7 @@ class AxesDatabaseHandler(AbstractAxesHandler, AxesBaseHandler):
         ip_address: Optional[str] = None,
         username: Optional[str] = None,
         ip_or_username: bool = False,
+        entry_point: str = "api",
     ) -> int:
         attempts = AccessAttempt.objects.all()
 
@@ -59,7 +61,14 @@ class AxesDatabaseHandler(AbstractAxesHandler, AxesBaseHandler):
             if username:
                 attempts = attempts.filter(username=username)
 
-        count, _ = attempts.delete()
+        scope = get_unlock_scope(
+            ip_address=ip_address,
+            username=username,
+            ip_or_username=ip_or_username,
+        )
+        count = delete_access_attempts(
+            attempts, entry_point=entry_point, scope=scope
+        )
         log.info("AXES: Reset %d access attempts from database.", count)
 
         return count

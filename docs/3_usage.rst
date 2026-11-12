@@ -111,6 +111,39 @@ In your code, you can use the ``axes.utils.reset`` function.
    The effective behaviour of ``reset`` is to ``and`` the terms instead of ``or`` ing them.
 
 
+Auditing unlock actions
+^^^^^^^^^^^^^^^^^^^^^^^
+
+Axes emits the ``axes.signals.user_unlocked`` signal after every explicit
+unlock action, whether it was performed from the Django admin, a management
+command, or programmatically.  The same signal is also exported as
+``axes.signals.access_attempts_reset``.
+
+Each event carries five keyword arguments and no raw client identifiers:
+
+- ``entry_point`` — ``"admin"``, ``"command"``, or ``"api"``.
+- ``scope`` — what the action selected: ``"all"``, ``"ip"``, ``"username"``,
+  ``"ip_and_username"``, ``"ip_or_username"``, ``"instance"``, or
+  ``"selection"``.
+- ``status`` — ``"success"`` when all requested records were removed,
+  ``"partial"`` when only some were removed, and ``"noop"`` when nothing was
+  removed.
+- ``requested`` — number of access attempts selected for removal.
+- ``affected`` — number of access attempts actually removed.
+
+The event is sent only after the deletion has completed.  If the storage
+backend raises, no success audit event is emitted.  Because the payload has no
+usernames or IP addresses, it is safe to forward to audit systems with a
+narrower data-retention policy.
+
+``python manage.py axes_reset_username alice`` therefore produces one event
+with ``entry_point="command"``, ``scope="username"``, ``status="success"``,
+and the number of removed attempts in ``affected``.  Deleting the same attempt
+from the Django admin produces an event with ``entry_point="admin"`` and
+``scope="instance"`` (single-object delete) or ``scope="selection"`` (the
+"delete selected" action), with the same ``requested`` and ``affected`` counts.
+
+
 
 Data privacy and GDPR
 ---------------------

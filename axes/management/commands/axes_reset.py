@@ -7,7 +7,7 @@ class Command(BaseCommand):
     help = "Reset all access attempts and lockouts"
 
     def handle(self, *args, **options):
-        count = reset()
+        count = reset(entry_point="command")
 
         if count:
             self.stdout.write(f"{count} attempts removed.")

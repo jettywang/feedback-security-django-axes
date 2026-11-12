@@ -11,7 +11,9 @@ class Command(BaseCommand):
         parser.add_argument("username", type=str)
 
     def handle(self, *args, **options):
-        count = reset(ip=options["ip"], username=options["username"])
+        count = reset(
+            ip=options["ip"], username=options["username"], entry_point="command"
+        )
 
         if count:
             self.stdout.write(f"{count} attempts removed.")
