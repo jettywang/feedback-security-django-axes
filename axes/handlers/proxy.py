@@ -11,6 +11,7 @@ from axes.conf import settings
 from axes.handlers.base import AxesBaseHandler, AbstractAxesHandler, AxesHandler
 from axes.helpers import (
     get_client_ip_address,
+    get_client_scope,
     get_client_user_agent,
     get_client_path_info,
     get_client_http_accept,
@@ -53,9 +54,13 @@ class AxesProxyHandler(AbstractAxesHandler, AxesBaseHandler):
         ip_address: Optional[str] = None,
         username: Optional[str] = None,
         ip_or_username: bool = False,
+        scope: Optional[str] = None,
     ) -> int:
         return cls.get_implementation().reset_attempts(
-            ip_address=ip_address, username=username, ip_or_username=ip_or_username
+            ip_address=ip_address,
+            username=username,
+            ip_or_username=ip_or_username,
+            scope=scope,
         )
 
     @classmethod
@@ -93,6 +98,7 @@ class AxesProxyHandler(AbstractAxesHandler, AxesBaseHandler):
             request.axes_user_agent = get_client_user_agent(request)
             request.axes_path_info = get_client_path_info(request)
             request.axes_http_accept = get_client_http_accept(request)
+            request.axes_scope = get_client_scope(request)
             request.axes_failures_since_start = None
             request.axes_updated = True
             request.axes_credentials = None

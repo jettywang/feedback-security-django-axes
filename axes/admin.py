@@ -33,6 +33,7 @@ class AccessAttemptAdmin(admin.ModelAdmin):
         "ip_address",
         "user_agent",
         "username",
+        "scope",
         "path_info",
         "failures_since_start",
     ]
@@ -40,7 +41,7 @@ class AccessAttemptAdmin(admin.ModelAdmin):
     if settings.AXES_USE_ATTEMPT_EXPIRATION:
         list_display.append("expiration")
 
-    list_filter = ["attempt_time", "path_info"]
+    list_filter = ["attempt_time", "path_info", "scope"]
 
     if isinstance(settings.AXES_FAILURE_LIMIT, int) and settings.AXES_FAILURE_LIMIT > 0:
         # This will only add the status field if AXES_FAILURE_LIMIT is set to a positive integer
@@ -48,14 +49,22 @@ class AccessAttemptAdmin(admin.ModelAdmin):
         list_display.append("status")
         list_filter.append(IsLockedOutFilter)  # type: ignore[arg-type]
 
-    search_fields = ["ip_address", "username", "user_agent", "path_info"]
+    search_fields = ["ip_address", "username", "user_agent", "path_info", "scope"]
 
     date_hierarchy = "attempt_time"
 
     fieldsets = (
         (
             None,
-            {"fields": ("username", "path_info", "failures_since_start", "expiration")},
+            {
+                "fields": (
+                    "username",
+                    "scope",
+                    "path_info",
+                    "failures_since_start",
+                    "expiration",
+                )
+            },
         ),
         (_("Form Data"), {"fields": ("get_data", "post_data")}),
         (_("Meta Data"), {"fields": ("user_agent", "ip_address", "http_accept")}),
@@ -65,6 +74,7 @@ class AccessAttemptAdmin(admin.ModelAdmin):
         "user_agent",
         "ip_address",
         "username",
+        "scope",
         "http_accept",
         "path_info",
         "attempt_time",
@@ -106,18 +116,19 @@ class AccessLogAdmin(admin.ModelAdmin):
         "logout_time",
         "ip_address",
         "username",
+        "scope",
         "user_agent",
         "path_info",
     )
 
-    list_filter = ["attempt_time", "logout_time", "path_info"]
+    list_filter = ["attempt_time", "logout_time", "path_info", "scope"]
 
-    search_fields = ["ip_address", "user_agent", "username", "path_info"]
+    search_fields = ["ip_address", "user_agent", "username", "path_info", "scope"]
 
     date_hierarchy = "attempt_time"
 
     fieldsets = (
-        (None, {"fields": ("username", "path_info")}),
+        (None, {"fields": ("username", "scope", "path_info")}),
         (_("Meta Data"), {"fields": ("user_agent", "ip_address", "http_accept")}),
     )
 
@@ -125,6 +136,7 @@ class AccessLogAdmin(admin.ModelAdmin):
         "user_agent",
         "ip_address",
         "username",
+        "scope",
         "http_accept",
         "path_info",
         "attempt_time",
@@ -140,19 +152,20 @@ class AccessFailureLogAdmin(admin.ModelAdmin):
         "attempt_time",
         "ip_address",
         "username",
+        "scope",
         "user_agent",
         "path_info",
         "locked_out",
     )
 
-    list_filter = ["attempt_time", "locked_out", "path_info"]
+    list_filter = ["attempt_time", "locked_out", "path_info", "scope"]
 
-    search_fields = ["ip_address", "user_agent", "username", "path_info"]
+    search_fields = ["ip_address", "user_agent", "username", "path_info", "scope"]
 
     date_hierarchy = "attempt_time"
 
     fieldsets = (
-        (None, {"fields": ("username", "path_info")}),
+        (None, {"fields": ("username", "scope", "path_info")}),
         (_("Meta Data"), {"fields": ("user_agent", "ip_address", "http_accept")}),
     )
 
@@ -160,6 +173,7 @@ class AccessFailureLogAdmin(admin.ModelAdmin):
         "user_agent",
         "ip_address",
         "username",
+        "scope",
         "http_accept",
         "path_info",
         "attempt_time",

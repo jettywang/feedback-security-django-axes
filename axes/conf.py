@@ -85,6 +85,10 @@ settings.AXES_PASSWORD_FORM_FIELD = getattr(
 # use a provided callable to transform the POSTed username into the one used in credentials
 settings.AXES_USERNAME_CALLABLE = getattr(settings, "AXES_USERNAME_CALLABLE", None)
 
+# use a provided callable to resolve the authentication entry point scope
+# (e.g. an employee or customer login) which keeps failure counts separate
+settings.AXES_SCOPE_CALLABLE = getattr(settings, "AXES_SCOPE_CALLABLE", None)
+
 # determine if given user should be always allowed to attempt authentication
 settings.AXES_WHITELIST_CALLABLE = getattr(settings, "AXES_WHITELIST_CALLABLE", None)
 

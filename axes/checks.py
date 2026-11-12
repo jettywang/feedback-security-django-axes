@@ -248,6 +248,7 @@ def axes_conf_check(app_configs, **kwargs):  # pylint: disable=unused-argument
         "AXES_CLIENT_STR_CALLABLE",
         "AXES_LOCKOUT_CALLABLE",
         "AXES_USERNAME_CALLABLE",
+        "AXES_SCOPE_CALLABLE",
         "AXES_WHITELIST_CALLABLE",
         "AXES_COOLOFF_TIME",
         "AXES_LOCKOUT_PARAMETERS",

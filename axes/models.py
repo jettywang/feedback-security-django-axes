@@ -9,6 +9,10 @@ class AccessBase(models.Model):
 
     username = models.CharField(_("Username"), max_length=255, null=True, db_index=True)
 
+    scope = models.CharField(
+        _("Scope"), max_length=255, blank=True, default="", db_index=True
+    )
+
     http_accept = models.CharField(_("HTTP Accept"), max_length=1025)
 
     path_info = models.CharField(_("Path"), max_length=255)
@@ -48,7 +52,7 @@ class AccessAttempt(AccessBase):
     class Meta:
         verbose_name = _("access attempt")
         verbose_name_plural = _("access attempts")
-        unique_together = [["username", "ip_address", "user_agent"]]
+        unique_together = [["username", "ip_address", "user_agent", "scope"]]
 
 
 class AccessAttemptExpiration(models.Model):

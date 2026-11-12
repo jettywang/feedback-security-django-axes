@@ -247,6 +247,57 @@ def get_client_username(
     return username  # type: ignore[return-value]
 
 
+def get_client_scope(
+    request: HttpRequest, credentials: Optional[dict] = None
+) -> str:
+    """
+    Resolve the authentication entry point scope from the request.
+
+    The scope is supplied by the application through
+    ``settings.AXES_SCOPE_CALLABLE`` and can be used to keep failure counts
+    separate for different login entry points, such as employee and customer
+    logins which share the same username format. Returns an empty string when
+    no callable is configured so that unconfigured deployments keep using the
+    single shared default scope.
+
+    Non-string return values are coerced to strings and the result is
+    truncated to the maximum length of ``AccessBase.scope`` so that database
+    records and lockout lookups use the same value.
+
+    :param request: incoming Django ``HttpRequest`` or similar object from authentication backend or other source
+    :param credentials: incoming credentials ``dict`` or similar object from authentication backend or other source
+    """
+
+    if not settings.AXES_SCOPE_CALLABLE:
+        return ""
+
+    if callable(settings.AXES_SCOPE_CALLABLE):
+        scope = settings.AXES_SCOPE_CALLABLE(  # pylint: disable=not-callable
+            request, credentials
+        )
+    elif isinstance(settings.AXES_SCOPE_CALLABLE, str):
+        scope = import_string(settings.AXES_SCOPE_CALLABLE)(request, credentials)
+    else:
+        raise TypeError(
+            "settings.AXES_SCOPE_CALLABLE needs to be a string, callable, or None."
+        )
+
+    if scope is None:
+        return ""
+    if not isinstance(scope, str):
+        scope = str(scope)
+
+    max_length = AccessBase._meta.get_field("scope").max_length
+    if len(scope) > max_length:
+        log.warning(
+            "AXES: Truncating scope of length %s to %s characters to fit the database field.",
+            len(scope),
+            max_length,
+        )
+        scope = scope[:max_length]
+    return scope
+
+
 def get_client_ip_address(
     request: HttpRequest,
     use_ipware: Optional[bool] = None,
@@ -336,6 +387,7 @@ def get_client_parameters(
     user_agent: str,
     request_or_attempt: Union[HttpRequest, AccessBase],
     credentials: Optional[dict] = None,
+    scope: str = "",
 ) -> List[dict]:
     """
     Get query parameters for filtering AccessAttempt queryset.
@@ -351,6 +403,7 @@ def get_client_parameters(
         "username": username,
         "ip_address": ip_address,
         "user_agent": user_agent,
+        "scope": scope,
     }
 
     filter_kwargs = []
@@ -404,13 +457,20 @@ def get_client_cache_keys(
         username = request_or_attempt.username
         ip_address = request_or_attempt.ip_address
         user_agent = request_or_attempt.user_agent
+        scope = request_or_attempt.scope
     else:
         username = get_client_username(request_or_attempt, credentials)
         ip_address = get_client_ip_address(request_or_attempt)
         user_agent = get_client_user_agent(request_or_attempt)
+        scope = get_client_scope(request_or_attempt, credentials)
 
     filter_kwargs_list = get_client_parameters(
-        username, ip_address, user_agent, request_or_attempt, credentials
+        username,
+        ip_address,
+        user_agent,
+        request_or_attempt,
+        credentials,
+        scope,
     )
 
     return make_cache_key_list(filter_kwargs_list)
@@ -452,12 +512,20 @@ def get_client_str(
         client_dict["username"] = username
         client_dict["ip_address"] = ip_address
         client_dict["user_agent"] = user_agent
+        scope = get_client_scope(request)
+        if scope:
+            client_dict["scope"] = scope
     else:
         # Other modes initialize the attributes that are used for the actual lockouts
-        client_list = get_client_parameters(username, ip_address, user_agent, request)
+        scope = get_client_scope(request)
+        client_list = get_client_parameters(
+            username, ip_address, user_agent, request, scope=scope
+        )
         client_dict = {}
         for client in client_list:
-            client_dict.update(client)
+            client_dict.update(
+                {key: value for key, value in client.items() if key != "scope" or value}
+            )
     client_dict = cleanse_parameters(client_dict.copy())
     # Path info is always included as last component in the client string for traceability purposes
     if path_info and isinstance(path_info, (tuple, list)):

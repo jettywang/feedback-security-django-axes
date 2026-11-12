@@ -8,12 +8,18 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("username", nargs="+", type=str)
+        parser.add_argument(
+            "--scope",
+            type=str,
+            default=None,
+            help="Only reset attempts for the given authentication entry point scope.",
+        )
 
     def handle(self, *args, **options):
         count = 0
 
         for username in options["username"]:
-            count += reset(username=username)
+            count += reset(username=username, scope=options["scope"])
 
         if count:
             self.stdout.write(f"{count} attempts removed.")

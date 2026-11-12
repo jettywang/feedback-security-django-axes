@@ -2,6 +2,28 @@
 Changes
 =======
 
+9.1.0 (unreleased)
+------------------
+
+Features
+~~~~~~~~
+
+- Add ``AXES_SCOPE_CALLABLE`` for resolving an authentication entry point
+  identifier (such as an employee or customer login) from the request. The
+  returned value is available as the new ``scope`` lockout parameter and is
+  stored on the access attempt, access log and access failure log models.
+  Including ``"scope"`` in ``AXES_LOCKOUT_PARAMETERS`` keeps failure counts,
+  lockouts, success resets and cache keys separate per entry point even when
+  the usernames share the same format. When no callable is configured the
+  scope is empty and all requests continue to share the default scope.
+- Add the ``scope`` field to the Axes admin views, including list display,
+  filtering and searching.
+- Add an optional ``--scope`` argument to the ``axes_reset_ip``,
+  ``axes_reset_username`` and ``axes_reset_ip_username`` management commands
+  and a new ``axes_reset_scope`` command for unlocking a single entry point.
+- Run ``python manage.py migrate`` to install the new ``scope`` field and the
+  updated ``AccessAttempt`` uniqueness constraint.
+
 9.0.0 (2026-10-30)
 ------------------
 

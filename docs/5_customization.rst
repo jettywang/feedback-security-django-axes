@@ -215,6 +215,52 @@ Example of callable ``AXES_LOCKOUT_PARAMETERS``:
 
 This way, if client ip_address is localhost, axes will lockout client only by username. In other case, axes will lockout client by username or ip_address.
 
+.. _customizing-authentication-scopes:
+
+Customizing authentication entry point scopes
+---------------------------------------------
+
+Applications can expose more than one login entry point, for example separate
+employee and customer logins, where the same username identifier can be used in
+both. By default Axes counts the failed attempts for these logins together.
+Configuring ``AXES_SCOPE_CALLABLE`` lets the application tell Axes which entry
+point a request belongs to so that the failure counts and lockouts are tracked
+independently for each scope.
+
+The callable receives the current request and the credentials dictionary and
+returns the scope identifier as a string. Returning ``None`` or an empty string
+falls back to the shared default scope, which is also the behaviour when the
+setting is not configured at all.
+
+``example/utils.py``::
+
+    def get_scope(request, credentials=None):
+        if request.path.startswith("/employee-login/"):
+            return "employee"
+        if request.path.startswith("/customer-login/"):
+            return "customer"
+        return ""
+
+``settings.py``::
+
+    AXES_SCOPE_CALLABLE = "example.utils.get_scope"
+    AXES_LOCKOUT_PARAMETERS = ["scope", ["username", "scope"]]
+
+With this configuration the ``"scope"`` parameter participates in the lockout
+filters and cache keys exactly like ``"username"`` or ``"ip_address"``. A
+successful login on one entry point only resets the failed attempts of that
+scope when ``AXES_RESET_ON_SUCCESS`` is enabled, leaving the failure counts and
+lockout state of the other entry point untouched.
+
+The resolved scope is stored on the ``AccessAttempt``, ``AccessLog`` and
+``AccessFailureLog`` models in the ``scope`` field and is shown in the admin
+interface, where attempts can be filtered and searched by scope. The
+management commands accept an optional ``--scope`` argument and
+``axes_reset_scope`` removes every attempt of a single scope::
+
+    python manage.py axes_reset_scope employee
+    python manage.py axes_reset_username jane.doe --scope employee
+
 Customizing client ip address lookups
 -------------------------------------
 

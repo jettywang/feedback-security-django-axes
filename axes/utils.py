@@ -11,13 +11,20 @@ from typing import Optional
 from django.http import HttpRequest
 
 from axes.handlers.proxy import AxesProxyHandler
-from axes.helpers import get_client_ip_address, get_lockout_parameters
+from axes.helpers import (
+    get_client_ip_address,
+    get_client_scope,
+    get_lockout_parameters,
+)
 
 log = getLogger(__name__)
 
 
 def reset(
-    ip: Optional[str] = None, username: Optional[str] = None, ip_or_username=False
+    ip: Optional[str] = None,
+    username: Optional[str] = None,
+    ip_or_username=False,
+    scope: Optional[str] = None,
 ) -> int:
     """
     Reset records that match IP or username, and return the count of removed attempts.
@@ -26,7 +33,10 @@ def reset(
     """
 
     return AxesProxyHandler.reset_attempts(
-        ip_address=ip, username=username, ip_or_username=ip_or_username
+        ip_address=ip,
+        username=username,
+        ip_or_username=ip_or_username,
+        scope=scope,
     )
 
 
@@ -70,4 +80,5 @@ def reset_request(request: HttpRequest) -> int:
         # We don't want to reset everything, if there is some wrong request parameter
 
     # TODO: reset based on user_agent?
-    return reset(ip, username, ip_or_username)
+    scope = get_client_scope(request)
+    return reset(ip, username, ip_or_username, scope=scope or None)

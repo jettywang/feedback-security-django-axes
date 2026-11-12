@@ -33,6 +33,7 @@ class AxesCacheHandler(AbstractAxesHandler, AxesBaseHandler):
         ip_address: Optional[str] = None,
         username: Optional[str] = None,
         ip_or_username: bool = False,
+        scope: Optional[str] = None,
     ) -> int:
         cache_keys: list = []
         count = 0
@@ -46,7 +47,9 @@ class AxesCacheHandler(AbstractAxesHandler, AxesBaseHandler):
 
         cache_keys.extend(
             get_client_cache_keys(
-                AccessAttempt(username=username, ip_address=ip_address)
+                AccessAttempt(
+                    username=username, ip_address=ip_address, scope=scope or ""
+                )
             )
         )
 
@@ -80,7 +83,11 @@ class AxesCacheHandler(AbstractAxesHandler, AxesBaseHandler):
 
         username = get_client_username(request, credentials)
         lockout_parameters = get_lockout_parameters(request, credentials)
-        if lockout_parameters == ["username"] and username is None:
+        if (
+            lockout_parameters == ["username"]
+            and username is None
+            and not request.axes_scope
+        ):
             log.warning(
                 "AXES: Username is None and username is the only one lockout parameter, new record will NOT be created."
             )

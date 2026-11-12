@@ -9,5 +9,6 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         for obj in AccessAttempt.objects.all():
             self.stdout.write(
-                f"{obj.ip_address}\t{obj.username}\t{obj.failures_since_start}"
+                f"{obj.ip_address}\t{obj.username}\t{obj.scope}\t"
+                f"{obj.failures_since_start}"
             )

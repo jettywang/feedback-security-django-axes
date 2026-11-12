@@ -185,6 +185,7 @@ class AxesBaseHandler:  # pylint: disable=unused-argument
         ip_address: Optional[str] = None,
         username: Optional[str] = None,
         ip_or_username: bool = False,
+        scope: Optional[str] = None,
     ) -> int:
         """
         Resets access attempts that match the given IP address or username.

@@ -48,8 +48,12 @@ class AxesDatabaseHandler(AbstractAxesHandler, AxesBaseHandler):
         ip_address: Optional[str] = None,
         username: Optional[str] = None,
         ip_or_username: bool = False,
+        scope: Optional[str] = None,
     ) -> int:
         attempts = AccessAttempt.objects.all()
+
+        if scope is not None:
+            attempts = attempts.filter(scope=scope)
 
         if ip_or_username:
             attempts = attempts.filter(Q(ip_address=ip_address) | Q(username=username))
@@ -178,7 +182,11 @@ class AxesDatabaseHandler(AbstractAxesHandler, AxesBaseHandler):
 
         # 2. database query: Get or create access record with the new failure data
         lockout_parameters = get_lockout_parameters(request, credentials)
-        if lockout_parameters == ["username"] and username is None:
+        if (
+            lockout_parameters == ["username"]
+            and username is None
+            and not request.axes_scope
+        ):
             log.warning(
                 "AXES: Username is None and username is the only one lockout parameter, new record will NOT be created."
             )
@@ -191,6 +199,7 @@ class AxesDatabaseHandler(AbstractAxesHandler, AxesBaseHandler):
                     username=username,
                     ip_address=request.axes_ip_address,
                     user_agent=request.axes_user_agent,
+                    scope=request.axes_scope,
                     defaults={
                         "get_data": get_data,
                         "post_data": post_data,
@@ -281,6 +290,7 @@ class AxesDatabaseHandler(AbstractAxesHandler, AxesBaseHandler):
                     path_info=request.axes_path_info,
                     attempt_time=request.axes_attempt_time,
                     locked_out=request.axes_locked_out,
+                    scope=request.axes_scope,
                 )
                 self.remove_out_of_limit_failure_logs(username=username)
 
@@ -316,6 +326,7 @@ class AxesDatabaseHandler(AbstractAxesHandler, AxesBaseHandler):
                 # evaluate session hash here to ensure having the correct
                 # value which is stored on the backend
                 session_hash=get_client_session_hash(request),
+                scope=request.axes_scope,
             )
 
         if settings.AXES_RESET_ON_SUCCESS:
@@ -364,6 +375,7 @@ class AxesDatabaseHandler(AbstractAxesHandler, AxesBaseHandler):
         """
 
         username = get_client_username(request, credentials)
+        scope = getattr(request, "axes_scope", "") or ""
 
         filter_kwargs_list = get_client_parameters(
             username,
@@ -371,6 +383,7 @@ class AxesDatabaseHandler(AbstractAxesHandler, AxesBaseHandler):
             request.axes_user_agent,
             request,
             credentials,
+            scope,
         )
         attempts_list = [
             AccessAttempt.objects.filter(**filter_kwargs)

@@ -65,7 +65,11 @@ class ManagementCommandTestCase(AxesTestCase):
         out = StringIO()
         call_command("axes_list_attempts", stdout=out)
 
-        expected = "10.0.0.1\tjane.doe\t4\n10.0.0.2\tjohn.doe\t15\n10.0.0.4\trichard.doe\t12\n"
+        expected = (
+            "10.0.0.1\tjane.doe\t\t4\n"
+            "10.0.0.2\tjohn.doe\t\t15\n"
+            "10.0.0.4\trichard.doe\t\t12\n"
+        )
         self.assertEqual(expected, out.getvalue())
 
     def test_axes_reset(self):
