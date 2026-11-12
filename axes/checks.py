@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.core.checks import (  # pylint: disable=redefined-builtin
     Tags,
     Warning,
@@ -28,8 +30,13 @@ class Messages:
     )
     LOCKOUT_TIERS_CONFLICT = (
         "AXES_LOCKOUT_TIERS is set alongside AXES_COOLOFF_TIME."
-        " When tiers are active, AXES_COOLOFF_TIME is ignored."
-        " Remove AXES_COOLOFF_TIME to silence this warning."
+        " At runtime the cool-off is resolved from the matching LockoutTier"
+        " and AXES_COOLOFF_TIME is never used."
+    )
+    LOCKOUT_TIERS_FAILURE_LIMIT_CONFLICT = (
+        "AXES_LOCKOUT_TIERS is set alongside AXES_FAILURE_LIMIT."
+        " At runtime the lowest tier threshold ({failure_limit}) becomes the"
+        " effective failure limit and AXES_FAILURE_LIMIT is never used."
     )
     LOCKOUT_TIERS_INVALID = (
         "AXES_LOCKOUT_TIERS must be a list of LockoutTier instances."
@@ -41,9 +48,18 @@ class Hints:
     MIDDLEWARE_INVALID = None
     BACKEND_INVALID = "AxesModelBackend was renamed to AxesStandaloneBackend in django-axes version 5.0."
     SETTING_DEPRECATED = None
-    CALLABLE_INVALID = None
+    CALLABLE_INVALID = (
+        "Expected signature for {callable_setting}: {expected_signature}."
+        " Use a direct callable or an importable dotted path string."
+        " The check only imports the path; it does not invoke the callback."
+    )
     LOCKOUT_PARAMETERS_INVALID = "Add 'ip_address' to AXES_LOCKOUT_PARAMETERS."
-    LOCKOUT_TIERS_CONFLICT = "Remove AXES_COOLOFF_TIME when using AXES_LOCKOUT_TIERS."
+    LOCKOUT_TIERS_CONFLICT = (
+        "Remove AXES_COOLOFF_TIME; each tier already carries its own cooloff."
+    )
+    LOCKOUT_TIERS_FAILURE_LIMIT_CONFLICT = (
+        "Remove AXES_FAILURE_LIMIT; tune the first LockoutTier.failures instead."
+    )
     LOCKOUT_TIERS_INVALID = "Use: AXES_LOCKOUT_TIERS = [LockoutTier(failures=3, cooloff=timedelta(minutes=15)), ...]"
 
 
@@ -56,6 +72,50 @@ class Codes:
     LOCKOUT_PARAMETERS_INVALID = "axes.W006"
     LOCKOUT_TIERS_CONFLICT = "axes.W007"
     LOCKOUT_TIERS_INVALID = "axes.W008"
+    LOCKOUT_TIERS_FAILURE_LIMIT_CONFLICT = "axes.W009"
+
+
+# Runtime signatures of the Axes callback settings, mirrored from axes.helpers.
+# Only the dotted import path is resolved here; the callbacks themselves are
+# never called, so the check cannot trigger any real authentication workflow.
+# ``extra_allowed_types`` lists non-callable values the runtime accepts for
+# settings that double as plain configuration values.
+CALLABLE_SETTING_SIGNATURES = {
+    "AXES_CLIENT_IP_CALLABLE": {
+        "signature": "get_client_ip(request)",
+        "extra_allowed_types": (),
+    },
+    "AXES_CLIENT_STR_CALLABLE": {
+        "signature": (
+            "get_client_str(username, ip_address, user_agent, path_info, request)"
+        ),
+        "extra_allowed_types": (),
+    },
+    "AXES_LOCKOUT_CALLABLE": {
+        "signature": "lockout(request, response, credentials)",
+        "extra_allowed_types": (),
+    },
+    "AXES_USERNAME_CALLABLE": {
+        "signature": "get_username(request, credentials)",
+        "extra_allowed_types": (),
+    },
+    "AXES_WHITELIST_CALLABLE": {
+        "signature": "is_whitelisted(request, credentials)",
+        "extra_allowed_types": (),
+    },
+    "AXES_FAILURE_LIMIT": {
+        "signature": "get_failure_limit(request, credentials)",
+        "extra_allowed_types": (int,),
+    },
+    "AXES_COOLOFF_TIME": {
+        "signature": "get_cool_off(request)",
+        "extra_allowed_types": (int, float, timedelta),
+    },
+    "AXES_LOCKOUT_PARAMETERS": {
+        "signature": "get_lockout_parameters(request_or_attempt, credentials)",
+        "extra_allowed_types": (list, tuple),
+    },
+}
 
 
 @register(Tags.security, Tags.caches, Tags.compatibility)
@@ -221,12 +281,24 @@ def axes_lockout_tiers_check(app_configs, **kwargs):  # pylint: disable=unused-a
         )
         return warnings
 
-    if getattr(settings, "AXES_COOLOFF_TIME", None) is not None:
+    if is_non_default_setting("AXES_COOLOFF_TIME"):
         warnings.append(
             Warning(
                 msg=Messages.LOCKOUT_TIERS_CONFLICT,
                 hint=Hints.LOCKOUT_TIERS_CONFLICT,
                 id=Codes.LOCKOUT_TIERS_CONFLICT,
+            )
+        )
+
+    if is_non_default_setting("AXES_FAILURE_LIMIT"):
+        effective_failure_limit = min(tier.failures for tier in tiers)
+        warnings.append(
+            Warning(
+                msg=Messages.LOCKOUT_TIERS_FAILURE_LIMIT_CONFLICT.format(
+                    failure_limit=effective_failure_limit
+                ),
+                hint=Hints.LOCKOUT_TIERS_FAILURE_LIMIT_CONFLICT,
+                id=Codes.LOCKOUT_TIERS_FAILURE_LIMIT_CONFLICT,
             )
         )
 
@@ -239,29 +311,41 @@ def is_valid_tiers_list(tiers) -> bool:
     return all(isinstance(t, LockoutTier) for t in tiers)
 
 
+def is_non_default_setting(setting_name: str) -> bool:
+    """
+    Return whether *setting_name* holds a value other than the axes.conf
+    default and would therefore take part in runtime resolution.
+
+    The value comparison is used instead of Django's private settings
+    bookkeeping so the result is identical under plain settings modules and
+    test helpers such as ``override_settings``.
+    """
+
+    default_values = {
+        "AXES_FAILURE_LIMIT": 3,
+        "AXES_COOLOFF_TIME": None,
+    }
+    return (
+        getattr(settings, setting_name, None) != default_values.get(setting_name)
+    )
+
+
 @register
 def axes_conf_check(app_configs, **kwargs):  # pylint: disable=unused-argument
     warnings = []
 
-    callable_settings = [
-        "AXES_CLIENT_IP_CALLABLE",
-        "AXES_CLIENT_STR_CALLABLE",
-        "AXES_LOCKOUT_CALLABLE",
-        "AXES_USERNAME_CALLABLE",
-        "AXES_WHITELIST_CALLABLE",
-        "AXES_COOLOFF_TIME",
-        "AXES_LOCKOUT_PARAMETERS",
-    ]
-
-    for callable_setting in callable_settings:
+    for callable_setting, spec in CALLABLE_SETTING_SIGNATURES.items():
         value = getattr(settings, callable_setting, None)
-        if not is_valid_callable(value):
+        if not is_valid_callable(value, spec["extra_allowed_types"]):
             warnings.append(
                 Warning(
                     msg=Messages.CALLABLE_INVALID.format(
                         callable_setting=callable_setting
                     ),
-                    hint=Hints.CALLABLE_INVALID,
+                    hint=Hints.CALLABLE_INVALID.format(
+                        callable_setting=callable_setting,
+                        expected_signature=spec["signature"],
+                    ),
                     id=Codes.CALLABLE_INVALID,
                 )
             )
@@ -269,8 +353,11 @@ def axes_conf_check(app_configs, **kwargs):  # pylint: disable=unused-argument
     return warnings
 
 
-def is_valid_callable(value) -> bool:
+def is_valid_callable(value, extra_allowed_types=()) -> bool:
     if value is None:
+        return True
+
+    if isinstance(value, extra_allowed_types):
         return True
 
     if callable(value):
@@ -278,8 +365,9 @@ def is_valid_callable(value) -> bool:
 
     if isinstance(value, str):
         try:
-            import_string(value)
+            imported = import_string(value)
         except ImportError:
             return False
+        return callable(imported)
 
-    return True
+    return False

@@ -116,6 +116,31 @@ The following ``settings.py`` options are available for customizing Axes behavio
     AXES_FAILURE_LIMIT = 5
     AXES_COOLOFF_TIME = None
 
+Migrating to progressive lockout tiers
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When you introduce ``AXES_LOCKOUT_TIERS``, the legacy single-value options are
+resolved away at runtime:
+
+- ``axes.helpers.get_failure_limit`` returns the lowest tier's ``failures``
+  threshold, so a non-default ``AXES_FAILURE_LIMIT`` is never used.
+- ``axes.helpers.get_cool_off`` returns the cool-off of the tier matching the
+  current failure count, so ``AXES_COOLOFF_TIME`` is never used.
+
+The Django system checks surface these leftovers before the first login
+instead of waiting for the runtime path to be hit:
+
+- ``axes.W007`` warns that ``AXES_COOLOFF_TIME`` is shadowed by the tiers.
+- ``axes.W009`` names the effective failure limit taken from the lowest tier
+  and warns that ``AXES_FAILURE_LIMIT`` is shadowed.
+- ``axes.W005`` validates callback settings (including dotted import paths)
+  and reports the runtime signature each one must implement. The check only
+  imports the path; it never calls the callback.
+
+A pre-tier configuration without ``AXES_LOCKOUT_TIERS`` stays valid and
+produces none of these warnings, so existing projects do not need to rewrite
+working settings.
+
 The configuration option precedences for the access attempt monitoring are:
 
 1. Default: only use IP address.

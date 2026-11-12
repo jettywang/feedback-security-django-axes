@@ -2,6 +2,22 @@
 Changes
 =======
 
+Unreleased
+----------
+
+Features and fixes
+~~~~~~~~~~~~~~~~~~
+
+- Add actionable Django system checks for migrating to
+  ``AXES_LOCKOUT_TIERS``. ``axes.W007`` explains that ``AXES_COOLOFF_TIME`` is
+  shadowed by the tier cool-off at runtime, and the new ``axes.W009`` names
+  the effective failure limit taken from the lowest tier when
+  ``AXES_FAILURE_LIMIT`` is left behind.
+- Report the runtime signature in the ``axes.W005`` callback hint and accept
+  the non-callable values the runtime supports (``AXES_FAILURE_LIMIT`` as an
+  integer and ``AXES_LOCKOUT_PARAMETERS`` as a list or tuple). The check only
+  imports dotted callback paths and never invokes them.
+
 9.0.0 (2026-10-30)
 ------------------
 

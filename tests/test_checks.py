@@ -122,19 +122,86 @@ class ConfCheckTestCase(AxesTestCase):
             msg=Messages.CALLABLE_INVALID.format(
                 callable_setting="AXES_USERNAME_CALLABLE"
             ),
-            hint=Hints.CALLABLE_INVALID,
+            hint=Hints.CALLABLE_INVALID.format(
+                callable_setting="AXES_USERNAME_CALLABLE",
+                expected_signature="get_username(request, credentials)",
+            ),
             id=Codes.CALLABLE_INVALID,
         )
         self.assertEqual(warnings, [warning])
 
-    @override_settings(AXES_COOLOFF_TIME=lambda: 1)
+    @override_settings(
+        AXES_USERNAME_CALLABLE="tests.test_checks.valid_username_callback"
+    )
+    def test_valid_import_path_is_imported_but_not_called(self):
+        warnings = run_checks()
+        self.assertEqual(warnings, [])
+        self.assertFalse(valid_username_callback.called)
+
+    @override_settings(AXES_COOLOFF_TIME=lambda request: 1)
     def test_valid_callable(self):
+        warnings = run_checks()
+        self.assertEqual(warnings, [])
+
+    @override_settings(AXES_COOLOFF_TIME="module.not_defined")
+    def test_cooloff_invalid_import_path(self):
+        warnings = run_checks()
+        warning = Warning(
+            msg=Messages.CALLABLE_INVALID.format(
+                callable_setting="AXES_COOLOFF_TIME"
+            ),
+            hint=Hints.CALLABLE_INVALID.format(
+                callable_setting="AXES_COOLOFF_TIME",
+                expected_signature="get_cool_off(request)",
+            ),
+            id=Codes.CALLABLE_INVALID,
+        )
+        self.assertEqual(warnings, [warning])
+
+    @override_settings(AXES_COOLOFF_TIME=timedelta(minutes=30))
+    def test_cooloff_timedelta_is_not_treated_as_callable(self):
+        warnings = run_checks()
+        self.assertEqual(warnings, [])
+
+    @override_settings(AXES_FAILURE_LIMIT=7)
+    def test_failure_limit_integer_is_not_treated_as_callable(self):
+        warnings = run_checks()
+        self.assertEqual(warnings, [])
+
+    @override_settings(AXES_LOCKOUT_CALLABLE="tests.test_checks.not_a_callable")
+    def test_import_path_pointing_at_non_callable(self):
+        warnings = run_checks()
+        warning = Warning(
+            msg=Messages.CALLABLE_INVALID.format(
+                callable_setting="AXES_LOCKOUT_CALLABLE"
+            ),
+            hint=Hints.CALLABLE_INVALID.format(
+                callable_setting="AXES_LOCKOUT_CALLABLE",
+                expected_signature="lockout(request, response, credentials)",
+            ),
+            id=Codes.CALLABLE_INVALID,
+        )
+        self.assertEqual(warnings, [warning])
+
+    @override_settings(AXES_LOCKOUT_PARAMETERS=["ip_address"])
+    def test_lockout_parameters_list_is_not_treated_as_callable(self):
         warnings = run_checks()
         self.assertEqual(warnings, [])
 
     def test_missing_settings_no_error(self):
         warnings = run_checks()
         self.assertEqual(warnings, [])
+
+
+def valid_username_callback(request, credentials):
+    valid_username_callback.called = True
+    return credentials.get("username")
+
+
+valid_username_callback.called = False
+
+not_a_callable = "I am a string, not a callable"
+
 
 
 class LockoutParametersCheckTestCase(AxesTestCase):
@@ -160,7 +227,11 @@ class LockoutTiersCheckTestCase(AxesTestCase):
         LockoutTier(failures=6, cooloff=timedelta(hours=2)),
     ]
 
-    @override_settings(AXES_LOCKOUT_TIERS=SAMPLE_TIERS, AXES_COOLOFF_TIME=None)
+    @override_settings(
+        AXES_LOCKOUT_TIERS=SAMPLE_TIERS,
+        AXES_COOLOFF_TIME=None,
+        AXES_FAILURE_LIMIT=3,
+    )
     def test_tiers_alone_no_warning(self):
         warnings = run_checks()
         self.assertEqual(warnings, [])
@@ -174,6 +245,42 @@ class LockoutTiersCheckTestCase(AxesTestCase):
             id=Codes.LOCKOUT_TIERS_CONFLICT,
         )
         self.assertIn(warning, warnings)
+
+    @override_settings(AXES_LOCKOUT_TIERS=SAMPLE_TIERS, AXES_FAILURE_LIMIT=5)
+    def test_tiers_with_failure_limit_warns(self):
+        warnings = run_checks()
+        warning = Warning(
+            msg=Messages.LOCKOUT_TIERS_FAILURE_LIMIT_CONFLICT.format(
+                failure_limit=3
+            ),
+            hint=Hints.LOCKOUT_TIERS_FAILURE_LIMIT_CONFLICT,
+            id=Codes.LOCKOUT_TIERS_FAILURE_LIMIT_CONFLICT,
+        )
+        self.assertIn(warning, warnings)
+
+    @override_settings(AXES_LOCKOUT_TIERS=SAMPLE_TIERS, AXES_FAILURE_LIMIT=3)
+    def test_tiers_keep_default_failure_limit_silent(self):
+        # AXES_FAILURE_LIMIT equal to the axes.conf default (3) is treated as
+        # an unset value, so it does not conflict with the tier thresholds.
+        warnings = run_checks()
+        ids = {warning.id for warning in warnings}
+        self.assertNotIn(Codes.LOCKOUT_TIERS_FAILURE_LIMIT_CONFLICT, ids)
+
+    @override_settings(
+        AXES_LOCKOUT_TIERS=SAMPLE_TIERS,
+        AXES_COOLOFF_TIME=timedelta(minutes=30),
+        AXES_FAILURE_LIMIT=5,
+    )
+    def test_mixed_legacy_and_tiers_reports_both_conflicts(self):
+        warnings = run_checks()
+        ids = {warning.id for warning in warnings}
+        self.assertEqual(
+            ids,
+            {
+                Codes.LOCKOUT_TIERS_CONFLICT,
+                Codes.LOCKOUT_TIERS_FAILURE_LIMIT_CONFLICT,
+            },
+        )
 
     @override_settings(AXES_LOCKOUT_TIERS="not a list")
     def test_tiers_invalid_format_warns(self):

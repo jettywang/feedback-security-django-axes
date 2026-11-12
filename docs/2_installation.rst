@@ -204,6 +204,15 @@ Axes has the following warnings codes built in:
 - ``axes.W002`` for invalid ``MIDDLEWARE`` configuration.
 - ``axes.W003`` for invalid ``AUTHENTICATION_BACKENDS`` configuration.
 - ``axes.W004`` for deprecated use of ``AXES_*`` setting flags.
+- ``axes.W005`` for a callback setting whose value is neither callable nor an importable dotted path. The hint states the runtime signature Axes uses to call it.
+- ``axes.W006`` for ``AXES_LOCKOUT_PARAMETERS`` that do not contain ``ip_address``.
+- ``axes.W007`` for ``AXES_LOCKOUT_TIERS`` configured together with ``AXES_COOLOFF_TIME``; the tier cool-off wins at runtime.
+- ``axes.W008`` for an ``AXES_LOCKOUT_TIERS`` value that is not a list of ``LockoutTier`` instances.
+- ``axes.W009`` for ``AXES_LOCKOUT_TIERS`` configured together with a non-default ``AXES_FAILURE_LIMIT``; the lowest tier threshold wins at runtime.
+
+The callback checks (``axes.W005``) only resolve the dotted import path to
+verify it points at a callable. They never invoke the callback, so running
+``manage.py check`` cannot trigger an authentication workflow.
 
 
 .. note::
