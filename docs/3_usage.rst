@@ -96,6 +96,40 @@ management commands with the Django ``manage.py`` or ``django-admin`` command he
   than the given age where the default is 30 days.
 
 
+Listing attempts and lockout statistics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The ``axes_list_attempts`` command lists the stored access attempts and
+supports filters that are taken directly from the command input:
+
+- ``python manage.py axes_list_attempts``
+  lists every access attempt with its IP address, username, and failure count.
+- ``python manage.py axes_list_attempts --ip-address 10.0.0.1``
+  only lists attempts for the given IP address.
+- ``python manage.py axes_list_attempts --username example``
+  only lists attempts for the given username.
+
+Customer support workflows that need counts without exporting account
+identifiers can use the statistics mode:
+
+- ``python manage.py axes_list_attempts --statistics``
+  aggregates the attempts by the lockout rule that is actually in effect,
+  using the configured ``AXES_LOCKOUT_TIERS`` or the ``AXES_FAILURE_LIMIT``
+  and ``AXES_COOLOFF_TIME`` fallback. Each rule group reports how many
+  attempts are currently ``locked``, have ``expired`` after their cooloff,
+  or remain ordinary ``failed`` attempts below the lockout threshold.
+  No usernames, IP addresses, or other account identifiers are printed.
+- ``python manage.py axes_list_attempts --statistics --json``
+  emits the same aggregates as a single JSON document that scripts can
+  parse in one run. The ``--json`` flag requires ``--statistics`` so the
+  machine-readable output can never contain account identifiers.
+
+Both filters can be combined with ``--statistics`` and ``--json``, for
+example::
+
+    python manage.py axes_list_attempts --statistics --json --ip-address 10.0.0.1
+
+
 Resetting attempts programmatically by APIs
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

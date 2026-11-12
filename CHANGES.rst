@@ -2,6 +2,19 @@
 Changes
 =======
 
+Unreleased
+----------
+
+Features and fixes
+~~~~~~~~~~~~~~~~~~
+
+- Add ``--statistics`` and ``--json`` flags to the ``axes_list_attempts``
+  management command. The statistics mode reports locked, expired, and
+  ordinary failure counts grouped by the effective ``AXES_LOCKOUT_TIERS``
+  rule or the ``AXES_FAILURE_LIMIT`` and ``AXES_COOLOFF_TIME`` fallback,
+  using ``--ip-address`` and ``--username`` filters from the command input.
+  Account identifiers are never included in statistics output.
+
 9.0.0 (2026-10-30)
 ------------------
 
